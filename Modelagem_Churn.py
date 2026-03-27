@@ -209,7 +209,7 @@ plt.show()
 ### Escolhas:
 ### - 'RobustScaler':     robusto a outliers (usa mediana/IQR). Adequado para distribuições
 ###                       assimétricas como 'TotalCharges'.
-### - 'OneHotEncoder':    variáveis categóricas com poucas categorias (máx. 4).
+### - 'OneHotEncoder':    variáveis categóricas com até 4 categorias — sem explosão dimensional.
 ###                       'handle_unknown=ignore' evita erros com categorias novas em produção.
 
 numerical_pipeline = Pipeline(steps=[
@@ -346,12 +346,12 @@ print(f'Melhores parâmetros: {study_logistic.best_params}\n')
 print(f'XGBoost             — Melhor F2: {study_xgboost.best_value:.4f}')
 print(f'Melhores parâmetros: {study_xgboost.best_params}')
 
-### Resultado após tuning:
-### - Logistic Regression: F2 ≈ 0.5669  ← modelo escolhido
-### - XGBoost:             F2 ≈ 0.5572
+### Resultado após tuning (com class_weight / scale_pos_weight incluídos):
+### - Logistic Regression: F2 ≈ 0.7269  (class_weight='balanced')
+### - XGBoost:             F2 ≈ 0.7519  ← modelo escolhido
 ###
-### A Regressão Logística manteve a vantagem, confirmando que as relações no dataset
-### são bem capturadas por um modelo linear.
+### O XGBoost superou a Logística após incluir o scale_pos_weight no espaço de busca,
+### o que permitiu ao modelo aprender a penalizar mais os erros na classe minoritária (churn).
 
 
 # %%
@@ -382,7 +382,6 @@ ConfusionMatrixDisplay(confusion_matrix(y_test, y_pred_test)).plot()
 plt.title('XGBoost — Conjunto de Teste')
 plt.show()
 
-# %%
 # %%
 # 11.0 Análise Financeira
 
@@ -421,7 +420,7 @@ lucro_com_modelo = receita_salva - perda_fn - custo_campanhas
 
 # Cenário 3 — Modelo perfeito
 receita_perfeito  = (monthly[y_actual == 1] * tenure_medio_churn).sum()
-custo_perfeito    = y_actual.sum() * custo_campanha
+custo_perfeito    = (y_actual == 1).sum() * custo_campanha
 lucro_perfeito    = receita_perfeito - custo_perfeito
 
 # Valor incremental: quanto o modelo gera vs não fazer nada (baseline = 0)
@@ -452,5 +451,21 @@ print(f'Aproveitamento vs modelo perfeito:       {lucro_com_modelo/lucro_perfeit
 ### Trade-off: 384 Falsos Positivos geraram R$19.200 em campanhas desnecessárias,
 ### mas apenas 52 clientes escaparam sem ser abordados. Para o objetivo definido
 ### — onde perder um cliente vale mais do que o custo de uma campanha — esse trade-off é justificável.
+
+# %%
+# 12.0 Salvando o Modelo
+
+### Salvamos a pipeline completa (pré-processamento + modelo) em um único arquivo .pkl.
+### Isso garante que qualquer dado novo passará pelas mesmas transformações automaticamente,
+### sem necessidade de pré-processar manualmente antes de chamar o predict.
+
+import joblib
+
+joblib.dump(pipeline_final, 'model/pipeline_churn.pkl')
+print('Modelo salvo em model/pipeline_churn.pkl')
+
+### Para carregar e usar o modelo futuramente:
+### pipeline = joblib.load('model/pipeline_churn.pkl')
+### predicoes = pipeline.predict(novos_dados)
 
 # %%
