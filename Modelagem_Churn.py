@@ -17,17 +17,17 @@ from sklearn.metrics import (confusion_matrix, ConfusionMatrixDisplay,
 import xgboost as xgb
 
 
-# %%
-# 2.0 Contexto do Projeto
-
-### Objetivo:
-### Construir um modelo de classificação para prever churn de clientes de uma empresa
-### de telecomunicações, permitindo ações proativas de retenção antes do cancelamento.
-###
-### Problema de negócio:
-### Reter clientes é mais barato do que adquirir novos. Identificar clientes com alta
-### probabilidade de churn permite campanhas de retenção direcionadas e eficientes,
-### reduzindo o custo de aquisição e aumentando o LTV (Lifetime Value).
+# %% [markdown]
+# ## 2.0 Contexto do Projeto
+#
+# **Objetivo:**
+# Construir um modelo de classificação para prever churn de clientes de uma empresa
+# de telecomunicações, permitindo ações proativas de retenção antes do cancelamento.
+#
+# **Problema de negócio:**
+# Reter clientes é mais barato do que adquirir novos. Identificar clientes com alta
+# probabilidade de churn permite campanhas de retenção direcionadas e eficientes,
+# reduzindo o custo de aquisição e aumentando o LTV (Lifetime Value).
 
 
 # %%
@@ -37,43 +37,50 @@ data = pd.read_csv('data/WA_Fn-UseC_-Telco-Customer-Churn.csv')
 print(f'Tamanho do Dataset: {data.shape[0]} linhas e {data.shape[1]} colunas')
 data.head()
 
+# %% [markdown]
+# A coluna `customerID` é um identificador único por cliente — sem valor preditivo.
+# Verificamos se há duplicatas antes de remover.
+
 # %%
-### A coluna 'customerID' é um identificador único por cliente — sem valor preditivo.
-### Verificamos se há duplicatas antes de remover.
 print(f'Proporção de IDs únicos: {data["customerID"].nunique() / data.shape[0]:.2%}')
 data.drop('customerID', axis=1, inplace=True)
 
 # %%
 data.info()
 
-# %%
-### 'SeniorCitizen' está como inteiro (0/1), mas representa uma variável categórica.
-### Convertemos para 'object' para que seja tratada corretamente pelo pré-processamento.
-data['SeniorCitizen'] = data['SeniorCitizen'].astype('object')
+# %% [markdown]
+# `SeniorCitizen` está como inteiro (0/1), mas representa uma variável categórica.
+# Convertemos para `object` para que seja tratada corretamente pelo pré-processamento.
 
 # %%
-### 'TotalCharges' está como 'object' em vez de 'float64'.
-### Existem 11 registros com valor ' ' (espaço vazio) que impedem a conversão direta.
-### Removemos esses registros — representam menos de 0.2% do dataset.
+data['SeniorCitizen'] = data['SeniorCitizen'].astype('object')
+
+# %% [markdown]
+# `TotalCharges` está como `object` em vez de `float64`.
+# Existem 11 registros com valor `' '` (espaço vazio) que impedem a conversão direta.
+# Removemos esses registros — representam menos de 0.2% do dataset.
+
+# %%
 masc1 = data[data['TotalCharges'] == ' '].index
 data.drop(masc1, inplace=True)
 data['TotalCharges'] = data['TotalCharges'].astype('float64')
 print(f'Dataset após limpeza: {data.shape[0]} linhas e {data.shape[1]} colunas')
 
 
+# %% [markdown]
+# ## 4.0 Divisão Treino / Teste
+#
+# O split é feito **antes** da EDA para evitar data leakage.
+# Usar dados de teste na análise exploratória introduziria informações que não
+# estariam disponíveis no momento da previsão, levando a uma avaliação superestimada.
+#
+# Não utilizamos conjunto de validação separado — a validação cruzada (cv=5)
+# cumpre esse papel de forma mais robusta para o tamanho do dataset (~7k linhas).
+#
+# `stratify=y` garante que a proporção de classes (73.5% / 26.5%) seja
+# preservada em ambos os conjuntos.
+
 # %%
-# 4.0 Divisão Treino / Teste
-
-### O split é feito ANTES da EDA para evitar data leakage.
-### Usar dados de teste na análise exploratória introduziria informações que não
-### estariam disponíveis no momento da previsão, levando a uma avaliação superestimada.
-###
-### Não utilizamos conjunto de validação separado — a validação cruzada (cv=5)
-### cumpre esse papel de forma mais robusta para o tamanho do dataset (~7k linhas).
-###
-### 'stratify=y' garante que a proporção de classes (73.5% / 26.5%) seja
-### preservada em ambos os conjuntos.
-
 data['Churn'].value_counts()
 
 # %%
@@ -88,10 +95,12 @@ print(f'Treino:  {X_train.shape[0]} linhas')
 print(f'Teste:   {X_test.shape[0]} linhas')
 
 
-# %%
-# 5.0 Análise Exploratória dos Dados (EDA)
+# %% [markdown]
+# ## 5.0 Análise Exploratória dos Dados (EDA)
+#
+# Separando variáveis por tipo — usamos `X_train` para evitar data leakage.
 
-### Separando variáveis por tipo — usamos X_train para evitar data leakage
+# %%
 var_cat = X_train.select_dtypes(include='object').columns
 var_num = X_train.select_dtypes(exclude='object').columns
 
@@ -99,10 +108,12 @@ print(f'Variáveis Categóricas ({len(var_cat)}): {list(var_cat)}\n')
 print(f'Variáveis Numéricas   ({len(var_num)}): {list(var_num)}')
 
 
-# %%
-# 5.1 Análise Univariada
+# %% [markdown]
+# ### 5.1 Análise Univariada
+#
+# Variáveis categóricas — distribuição de contagem por categoria.
 
-### Variáveis categóricas — distribuição de contagem por categoria
+# %%
 fig, axes = plt.subplots(nrows=4, ncols=4, figsize=(16, 15))
 axes = axes.flatten()
 for i, var in enumerate(var_cat):
@@ -115,11 +126,14 @@ plt.suptitle('Distribuição das Variáveis Categóricas', fontsize=14, y=1.01)
 plt.tight_layout()
 plt.show()
 
-### A maioria das variáveis categóricas apresenta distribuição equilibrada.
-### Exceção: 'PhoneService' tem proporção muito menor na categoria 'No' (~10% dos clientes).
+# %% [markdown]
+# A maioria das variáveis categóricas apresenta distribuição equilibrada.
+# Exceção: `PhoneService` tem proporção muito menor na categoria `No` (~10% dos clientes).
+
+# %% [markdown]
+# Variáveis numéricas — histogramas de distribuição.
 
 # %%
-### Variáveis numéricas — histogramas de distribuição
 fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(16, 5))
 for i, var in enumerate(var_num):
     X_train[var].hist(ax=axes[i], bins=30)
@@ -130,15 +144,18 @@ plt.suptitle('Distribuição das Variáveis Numéricas', fontsize=14)
 plt.tight_layout()
 plt.show()
 
-### 'tenure' apresenta distribuição bimodal — muitos clientes novos e muitos clientes antigos.
-### 'MonthlyCharges' é multimodal — reflexo de diferentes planos contratados.
-### 'TotalCharges' é assimétrica positivamente — esperado, pois depende do tempo de permanência.
+# %% [markdown]
+# - `tenure`: distribuição bimodal — muitos clientes novos e muitos clientes antigos.
+# - `MonthlyCharges`: multimodal — reflexo de diferentes planos contratados.
+# - `TotalCharges`: assimétrica positivamente — esperado, pois depende do tempo de permanência.
 
+
+# %% [markdown]
+# ### 5.2 Análise Bivariada
+#
+# Correlação entre variáveis numéricas.
 
 # %%
-# 5.2 Análise Bivariada
-
-### Correlação entre variáveis numéricas
 corr_matrix = X_train[var_num].corr()
 plt.figure(figsize=(6, 4))
 sns.heatmap(corr_matrix, annot=True, fmt='.2f', cmap='coolwarm', linewidths=0.5)
@@ -146,12 +163,15 @@ plt.title('Correlação entre Variáveis Numéricas')
 plt.tight_layout()
 plt.show()
 
-### 'TotalCharges' tem correlação forte com 'tenure' (≈0.83) e 'MonthlyCharges' (≈0.65).
-### Clientes mais antigos naturalmente acumulam maior cobrança total.
+# %% [markdown]
+# `TotalCharges` tem correlação forte com `tenure` (≈0.83) e `MonthlyCharges` (≈0.65).
+# Clientes mais antigos naturalmente acumulam maior cobrança total.
+
+# %% [markdown]
+# Variáveis numéricas vs Churn — violin plots.
+# `TotalCharges` recebe transformação log para melhorar a visualização da distribuição assimétrica.
 
 # %%
-### Variáveis numéricas vs Churn — violin plots
-### 'TotalCharges' recebe transformação log para melhorar a visualização da distribuição assimétrica.
 fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(16, 6))
 for i, var in enumerate(var_num):
     if var == 'TotalCharges':
@@ -165,13 +185,16 @@ plt.suptitle('Variáveis Numéricas vs Churn', fontsize=14)
 plt.tight_layout()
 plt.show()
 
-### 'tenure':         clientes com churn concentram-se em valores baixos — clientes recentes cancelam mais.
-### 'MonthlyCharges': churn associado a cobranças mensais mais altas.
-### 'TotalCharges':   clientes sem churn apresentam densidade em valores mais altos,
-###                   reflexo do maior tempo de permanência (correlação com 'tenure').
+# %% [markdown]
+# - `tenure`: clientes com churn concentram-se em valores baixos — clientes recentes cancelam mais.
+# - `MonthlyCharges`: churn associado a cobranças mensais mais altas.
+# - `TotalCharges`: clientes sem churn apresentam densidade em valores mais altos,
+#   reflexo do maior tempo de permanência (correlação com `tenure`).
+
+# %% [markdown]
+# Variáveis categóricas vs Churn — stacked bar normalizado (proporção por categoria).
 
 # %%
-### Variáveis categóricas vs Churn — stacked bar normalizado (proporção por categoria)
 fig, axes = plt.subplots(nrows=4, ncols=4, figsize=(16, 15))
 axes = axes.flatten()
 for i, var in enumerate(var_cat):
@@ -187,31 +210,33 @@ plt.suptitle('Variáveis Categóricas vs Churn', fontsize=14, y=1.01)
 plt.tight_layout()
 plt.show()
 
-### Sinais fortes de churn:
-### - 'Contract':     clientes 'Month-to-month' têm taxa de churn muito maior. Contratos longos retêm.
-### - 'InternetService': 'Fiber optic' concentra maior proporção de churn — possível insatisfação.
-### - 'SeniorCitizen': idosos churnam mais que não idosos.
-### - 'OnlineSecurity' / 'TechSupport' / 'OnlineBackup' / 'DeviceProtection':
-###   clientes SEM esses serviços adicionais churnam mais — engajamento com o produto retém.
-### - 'PaymentMethod': 'Electronic check' destoa com churn consideravelmente maior.
-###
-### Pouco ou nenhum sinal preditivo:
-### - 'Gender': distribuição praticamente idêntica — baixo poder discriminativo esperado.
-### - 'PhoneService' / 'MultipleLines' / 'StreamingTV' / 'StreamingMovies': diferenças pequenas.
+# %% [markdown]
+# **Sinais fortes de churn:**
+# - `Contract`: clientes `Month-to-month` têm taxa de churn muito maior. Contratos longos retêm.
+# - `InternetService`: `Fiber optic` concentra maior proporção de churn — possível insatisfação.
+# - `SeniorCitizen`: idosos churnam mais que não idosos.
+# - `OnlineSecurity` / `TechSupport` / `OnlineBackup` / `DeviceProtection`:
+#   clientes SEM esses serviços adicionais churnam mais — engajamento com o produto retém.
+# - `PaymentMethod`: `Electronic check` destoa com churn consideravelmente maior.
+#
+# **Pouco ou nenhum sinal preditivo:**
+# - `Gender`: distribuição praticamente idêntica — baixo poder discriminativo esperado.
+# - `PhoneService` / `MultipleLines` / `StreamingTV` / `StreamingMovies`: diferenças pequenas.
 
+
+# %% [markdown]
+# ## 6.0 Pré-processamento — Pipeline Sklearn
+#
+# Utilizamos `Pipeline` + `ColumnTransformer` para garantir que as mesmas transformações
+# sejam aplicadas de forma consistente no treino, teste e em dados futuros (produção).
+#
+# **Escolhas:**
+# - `RobustScaler`: robusto a outliers (usa mediana/IQR). Adequado para distribuições
+#   assimétricas como `TotalCharges`.
+# - `OneHotEncoder`: variáveis categóricas com até 4 categorias — sem explosão dimensional.
+#   `handle_unknown='ignore'` evita erros com categorias novas em produção.
 
 # %%
-# 6.0 Pré-processamento — Pipeline Sklearn
-
-### Utilizamos Pipeline + ColumnTransformer para garantir que as mesmas transformações
-### sejam aplicadas de forma consistente no treino, teste e em dados futuros (produção).
-###
-### Escolhas:
-### - 'RobustScaler':     robusto a outliers (usa mediana/IQR). Adequado para distribuições
-###                       assimétricas como 'TotalCharges'.
-### - 'OneHotEncoder':    variáveis categóricas com até 4 categorias — sem explosão dimensional.
-###                       'handle_unknown=ignore' evita erros com categorias novas em produção.
-
 numerical_pipeline = Pipeline(steps=[
     ('scaler', RobustScaler())
 ])
@@ -226,13 +251,14 @@ preprocessor = ColumnTransformer(transformers=[
 ])
 
 
+# %% [markdown]
+# ## 7.0 Baseline — Comparação de Modelos
+#
+# Comparamos três modelos com parâmetros default para identificar o melhor ponto de partida.
+# Métrica: AUC-ROC via `cross_val_score` (cv=5).
+# Matriz de confusão via `cross_val_predict` — sem data leakage.
+
 # %%
-# 7.0 Baseline — Comparação de Modelos
-
-### Comparamos três modelos com parâmetros default para identificar o melhor ponto de partida.
-### Métrica: AUC-ROC via cross_val_score (cv=5).
-### Matriz de confusão via cross_val_predict — sem data leakage.
-
 modelos = [
     ('Logistic Regression', LogisticRegression(max_iter=1000, random_state=42)),
     ('Random Forest',       RandomForestClassifier(random_state=42)),
@@ -256,43 +282,46 @@ for nome, estimador in modelos:
     plt.title(f'{nome} — Validação Cruzada')
     plt.show()
 
-### Resultado baseline:
-### - Logistic Regression: AUC-ROC ≈ 0.8457
-### - XGBoost:             AUC-ROC ≈ 0.8259
-### - Random Forest:       AUC-ROC ≈ 0.8175
-###
-### A Regressão Logística superou os modelos mais complexos, indicando que as relações
-### entre features e churn são predominantemente lineares neste dataset.
+# %% [markdown]
+# **Resultado baseline:**
+# - Logistic Regression: AUC-ROC ≈ 0.8457
+# - XGBoost:             AUC-ROC ≈ 0.8259
+# - Random Forest:       AUC-ROC ≈ 0.8175
+#
+# A Regressão Logística superou os modelos mais complexos, indicando que as relações
+# entre features e churn são predominantemente lineares neste dataset.
 
+
+# %% [markdown]
+# ## 8.0 Definição da Métrica de Otimização
+#
+# O modelo deve identificar clientes com alta probabilidade de churn para ações proativas.
+# Os erros têm custos assimétricos:
+#
+# - **Falso Negativo** — cliente que vai churnar não é detectado
+#   → empresa perde receita recorrente sem chance de agir
+#
+# - **Falso Positivo** — cliente que não vai churnar é sinalizado como churn
+#   → empresa realiza campanha de retenção desnecessária (custo operacional)
+#
+# Como perder um cliente é mais custoso do que uma campanha desnecessária,
+# o Falso Negativo é o erro mais grave. Priorizamos o Recall da classe 1.
+#
+# Usamos **F2-score** como métrica de otimização: dá o dobro de peso ao Recall
+# em relação à Precision, sem ignorar completamente a Precision
+# (evitando um modelo que classifica tudo como churn).
 
 # %%
-# 8.0 Definição da Métrica de Otimização
-
-### O modelo deve identificar clientes com alta probabilidade de churn para ações proativas.
-### Os erros têm custos assimétricos:
-###
-### Falso Negativo — cliente que vai churnar não é detectado
-###                  → empresa perde receita recorrente sem chance de agir
-###
-### Falso Positivo — cliente que não vai churnar é sinalizado como churn
-###                  → empresa realiza campanha de retenção desnecessária (custo operacional)
-###
-### Como perder um cliente é mais custoso do que uma campanha desnecessária,
-### o Falso Negativo é o erro mais grave. Priorizamos o Recall da classe 1.
-###
-### Usamos F2-score como métrica de otimização: dá o dobro de peso ao Recall
-### em relação à Precision, sem ignorar completamente a Precision
-### (evitando um modelo que classifica tudo como churn).
-
 f2_scorer = make_scorer(fbeta_score, beta=2)
 
 
+# %% [markdown]
+# ## 9.0 Tuning de Hiperparâmetros — Optuna
+#
+# Utilizamos Optuna (otimização bayesiana) — mais eficiente que GridSearch/RandomizedSearch.
+# Otimizamos os dois melhores modelos do baseline: Logistic Regression e XGBoost.
+
 # %%
-# 9.0 Tuning de Hiperparâmetros — Optuna
-
-### Utilizamos Optuna (otimização bayesiana) — mais eficiente que GridSearch/RandomizedSearch.
-### Otimizamos os dois melhores modelos do baseline: Logistic Regression e XGBoost.
-
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 # %%
@@ -346,23 +375,25 @@ print(f'Melhores parâmetros: {study_logistic.best_params}\n')
 print(f'XGBoost             — Melhor F2: {study_xgboost.best_value:.4f}')
 print(f'Melhores parâmetros: {study_xgboost.best_params}')
 
-### Resultado após tuning (com class_weight / scale_pos_weight incluídos):
-### - Logistic Regression: F2 ≈ 0.7269  (class_weight='balanced')
-### - XGBoost:             F2 ≈ 0.7519  ← modelo escolhido
-###
-### O XGBoost superou a Logística após incluir o scale_pos_weight no espaço de busca,
-### o que permitiu ao modelo aprender a penalizar mais os erros na classe minoritária (churn).
+# %% [markdown]
+# **Resultado após tuning** (com class_weight / scale_pos_weight incluídos):
+# - Logistic Regression: F2 ≈ 0.7269  (class_weight='balanced')
+# - XGBoost:             F2 ≈ 0.7519  ← modelo escolhido
+#
+# O XGBoost superou a Logística após incluir o `scale_pos_weight` no espaço de busca,
+# o que permitiu ao modelo aprender a penalizar mais os erros na classe minoritária (churn).
 
+
+# %% [markdown]
+# ## 10.0 Modelo Final — Treino e Avaliação no Conjunto de Teste
+#
+# Com os melhores hiperparâmetros encontrados, retreinamos em **todo** o conjunto de treino.
+# O conjunto de teste é tocado **uma única vez** aqui, simulando dados completamente novos.
+#
+# XGBoost teve melhor F2 no tuning (0.7519 vs 0.7269 da Logistic).
+# Modelo final escolhido: XGBoost com os melhores parâmetros encontrados pelo Optuna.
 
 # %%
-# 10.0 Modelo Final — Treino e Avaliação no Conjunto de Teste
-
-### Com os melhores hiperparâmetros encontrados, retreinamos em TODO o conjunto de treino.
-### O conjunto de teste é tocado UMA ÚNICA VEZ aqui, simulando dados completamente novos.
-
-### XGBoost teve melhor F2 no tuning (0.7519 vs 0.7269 da Logistic).
-### Modelo final escolhido: XGBoost com os melhores parâmetros encontrados pelo Optuna.
-
 best_xgboost = xgb.XGBClassifier(
     **study_xgboost.best_params, eval_metric='logloss', random_state=42
 )
@@ -382,19 +413,20 @@ ConfusionMatrixDisplay(confusion_matrix(y_test, y_pred_test)).plot()
 plt.title('XGBoost — Conjunto de Teste')
 plt.show()
 
+# %% [markdown]
+# ## 11.0 Análise Financeira
+#
+# Avaliamos o impacto financeiro do modelo comparando três cenários:
+# - **Sem modelo**: empresa não age, perde todos os clientes que churnam
+# - **Com modelo**: empresa aborda clientes sinalizados pelo modelo
+# - **Modelo perfeito**: teto teórico, detecta 100% dos churns
+#
+# **Premissas:**
+# - Custo de campanha de retenção: R$50 por cliente abordado
+# - LTV perdido: MonthlyCharges × tenure médio dos clientes com churn
+# - Todo cliente corretamente identificado (VP) é retido pela campanha
+
 # %%
-# 11.0 Análise Financeira
-
-### Avaliamos o impacto financeiro do modelo comparando três cenários:
-### - Sem modelo: empresa não age, perde todos os clientes que churnam
-### - Com modelo: empresa aborda clientes sinalizados pelo modelo
-### - Modelo perfeito: teto teórico, detecta 100% dos churns
-###
-### Premissas:
-### - Custo de campanha de retenção: R$50 por cliente abordado
-### - LTV perdido: MonthlyCharges × tenure médio dos clientes com churn
-### - Todo cliente corretamente identificado (VP) é retido pela campanha
-
 # Tenure médio dos clientes que fizeram churn — base para o LTV estimado
 tenure_medio_churn = X_train[y_train == 1]['tenure'].mean()
 print(f'Tenure médio dos clientes com churn: {tenure_medio_churn:.1f} meses')
@@ -441,31 +473,38 @@ print(f'  Resultado líquido:                    R$ {lucro_perfeito:,.2f}')
 print(f'\nValor incremental do modelo vs não agir: R$ {valor_incremental:,.2f}')
 print(f'Aproveitamento vs modelo perfeito:       {lucro_com_modelo/lucro_perfeito:.1%}')
 
-### Interpretação:
-### Sem modelo a empresa perderia R$500.683 em receita de clientes que cancelam.
-### Com o modelo, 322 dos 374 churns reais foram detectados (Recall 86%) e retidos,
-### gerando resultado líquido de R$353.953 — transformando uma perda em resultado positivo.
-###
-### O modelo atinge 73.4% do teto teórico (modelo perfeito = R$481.983).
-###
-### Trade-off: 384 Falsos Positivos geraram R$19.200 em campanhas desnecessárias,
-### mas apenas 52 clientes escaparam sem ser abordados. Para o objetivo definido
-### — onde perder um cliente vale mais do que o custo de uma campanha — esse trade-off é justificável.
+# %% [markdown]
+# **Interpretação:**
+#
+# Sem modelo a empresa perderia R\$500.683 em receita de clientes que cancelam.
+# Com o modelo, 322 dos 374 churns reais foram detectados (Recall 86%) e retidos,
+# gerando resultado líquido de R\$353.953 — transformando uma perda em resultado positivo.
+#
+# O modelo atinge 73.4% do teto teórico (modelo perfeito = R\$481.983).
+#
+# **Trade-off:** 384 Falsos Positivos geraram R\$19.200 em campanhas desnecessárias,
+# mas apenas 52 clientes escaparam sem ser abordados. Para o objetivo definido
+# — onde perder um cliente vale mais do que o custo de uma campanha — esse trade-off é justificável.
+
+
+# %% [markdown]
+# ## 12.0 Salvando o Modelo
+#
+# Salvamos a pipeline completa (pré-processamento + modelo) em um único arquivo `.pkl`.
+# Isso garante que qualquer dado novo passará pelas mesmas transformações automaticamente,
+# sem necessidade de pré-processar manualmente antes de chamar o `predict`.
 
 # %%
-# 12.0 Salvando o Modelo
-
-### Salvamos a pipeline completa (pré-processamento + modelo) em um único arquivo .pkl.
-### Isso garante que qualquer dado novo passará pelas mesmas transformações automaticamente,
-### sem necessidade de pré-processar manualmente antes de chamar o predict.
-
 import joblib
 
 joblib.dump(pipeline_final, 'model/pipeline_churn.pkl')
 print('Modelo salvo em model/pipeline_churn.pkl')
 
-### Para carregar e usar o modelo futuramente:
-### pipeline = joblib.load('model/pipeline_churn.pkl')
-### predicoes = pipeline.predict(novos_dados)
+# %% [markdown]
+# Para carregar e usar o modelo futuramente:
+# ```python
+# pipeline = joblib.load('model/pipeline_churn.pkl')
+# predicoes = pipeline.predict(novos_dados)
+# ```
 
 # %%
