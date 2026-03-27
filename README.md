@@ -43,19 +43,35 @@ Dados brutos
 
 | Modelo | AUC-ROC (baseline) | F2 (após tuning) |
 |---|---|---|
-| Logistic Regression | 0.8457 | 0.5669 |
-| XGBoost | 0.8259 | 0.5572 |
+| Logistic Regression | 0.8457 | 0.7269 |
+| XGBoost | 0.8259 | 0.7519 |
 | Random Forest | 0.8175 | — |
 
-**Modelo final:** Logistic Regression (melhor desempenho em ambas as etapas)
+**Modelo final:** XGBoost (melhor F2 após tuning com `scale_pos_weight`)
 
 Avaliação no conjunto de teste:
 
 | Métrica | Classe 0 (No Churn) | Classe 1 (Churn) |
 |---|---|---|
-| Precision | 0.85 | 0.65 |
-| Recall | 0.89 | 0.57 |
-| F1-score | 0.87 | 0.61 |
+| Precision | 0.93 | 0.45 |
+| Recall | 0.61 | 0.86 |
+| F1-score | 0.74 | 0.59 |
+
+---
+
+## Análise Financeira
+
+Simulação com base nos clientes do conjunto de teste (1.407 clientes), custo de campanha de R$50 por cliente abordado e LTV estimado como `MonthlyCharges × tenure médio dos churns`.
+
+| Cenário | Resultado |
+|---|---|
+| Sem modelo (empresa não age) | -R$ 500.683 |
+| Com modelo (XGBoost tunado) | +R$ 353.953 |
+| Modelo perfeito (teto teórico) | +R$ 481.983 |
+
+O modelo detectou **86% dos churns reais** (322 de 374), transformando uma perda de meio milhão em resultado positivo. Atinge **73.4% do teto teórico**.
+
+O trade-off de 384 Falsos Positivos (R$19.200 em campanhas desnecessárias) é justificável dado que apenas 52 clientes escaparam sem ser abordados — coerente com o objetivo de negócio definido.
 
 ---
 

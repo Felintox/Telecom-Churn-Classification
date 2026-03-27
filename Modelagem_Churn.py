@@ -297,16 +297,18 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 # %%
 def objective_logistic(trial):
-    C       = trial.suggest_float('C', 0.01, 10.0, log=True)
-    solver  = trial.suggest_categorical('solver', ['lbfgs', 'liblinear', 'saga'])
-    penalty = trial.suggest_categorical('penalty', ['l1', 'l2'])
+    C            = trial.suggest_float('C', 0.01, 10.0, log=True)
+    solver       = trial.suggest_categorical('solver', ['lbfgs', 'liblinear', 'saga'])
+    penalty      = trial.suggest_categorical('penalty', ['l1', 'l2'])
+    class_weight = trial.suggest_categorical('class_weight', [None, 'balanced'])
 
     # 'l1' não é compatível com 'lbfgs'
     if solver == 'lbfgs' and penalty == 'l1':
         raise optuna.exceptions.TrialPruned()
 
     model = LogisticRegression(
-        C=C, solver=solver, penalty=penalty, max_iter=1000, random_state=42
+        C=C, solver=solver, penalty=penalty,
+        class_weight=class_weight, max_iter=1000, random_state=42
     )
     pipeline = Pipeline(steps=[
         ('preprocessor', preprocessor),
@@ -317,12 +319,13 @@ def objective_logistic(trial):
 # %%
 def objective_xgboost(trial):
     params = {
-        'n_estimators':     trial.suggest_int('n_estimators', 100, 500),
-        'max_depth':        trial.suggest_int('max_depth', 3, 8),
-        'learning_rate':    trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
-        'subsample':        trial.suggest_float('subsample', 0.6, 1.0),
-        'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
-        'min_child_weight': trial.suggest_int('min_child_weight', 1, 10)
+        'n_estimators':      trial.suggest_int('n_estimators', 100, 500),
+        'max_depth':         trial.suggest_int('max_depth', 3, 8),
+        'learning_rate':     trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
+        'subsample':         trial.suggest_float('subsample', 0.6, 1.0),
+        'colsample_bytree':  trial.suggest_float('colsample_bytree', 0.6, 1.0),
+        'min_child_weight':  trial.suggest_int('min_child_weight', 1, 10),
+        'scale_pos_weight':  trial.suggest_float('scale_pos_weight', 1.0, 5.0)
     }
     model = xgb.XGBClassifier(**params, eval_metric='logloss', random_state=42)
     pipeline = Pipeline(steps=[
@@ -357,12 +360,15 @@ print(f'Melhores parâmetros: {study_xgboost.best_params}')
 ### Com os melhores hiperparâmetros encontrados, retreinamos em TODO o conjunto de treino.
 ### O conjunto de teste é tocado UMA ÚNICA VEZ aqui, simulando dados completamente novos.
 
-best_logistic = LogisticRegression(
-    **study_logistic.best_params, max_iter=1000, random_state=42
+### XGBoost teve melhor F2 no tuning (0.7519 vs 0.7269 da Logistic).
+### Modelo final escolhido: XGBoost com os melhores parâmetros encontrados pelo Optuna.
+
+best_xgboost = xgb.XGBClassifier(
+    **study_xgboost.best_params, eval_metric='logloss', random_state=42
 )
 pipeline_final = Pipeline(steps=[
     ('preprocessor', preprocessor),
-    ('model', best_logistic)
+    ('model', best_xgboost)
 ])
 pipeline_final.fit(X_train, y_train)
 
@@ -373,16 +379,78 @@ print('Avaliação Final — Conjunto de Teste\n')
 print(classification_report(y_test, y_pred_test))
 
 ConfusionMatrixDisplay(confusion_matrix(y_test, y_pred_test)).plot()
-plt.title('Logistic Regression — Conjunto de Teste')
+plt.title('XGBoost — Conjunto de Teste')
 plt.show()
 
-### Resultado no conjunto de teste:
-### - Accuracy:          0.80
-### - Recall  (churn):   0.57  → detectou 57% dos churns reais
-### - Precision (churn): 0.65  → quando previu churn, acertou 65% das vezes
-### - F1-score (churn):  0.61
+# %%
+# %%
+# 11.0 Análise Financeira
+
+### Avaliamos o impacto financeiro do modelo comparando três cenários:
+### - Sem modelo: empresa não age, perde todos os clientes que churnam
+### - Com modelo: empresa aborda clientes sinalizados pelo modelo
+### - Modelo perfeito: teto teórico, detecta 100% dos churns
 ###
-### Falsos Negativos: 159 clientes que foram churnar e não foram detectados.
-### Falsos Positivos: 118 clientes que não foram churnar mas foram sinalizados.
+### Premissas:
+### - Custo de campanha de retenção: R$50 por cliente abordado
+### - LTV perdido: MonthlyCharges × tenure médio dos clientes com churn
+### - Todo cliente corretamente identificado (VP) é retido pela campanha
+
+# Tenure médio dos clientes que fizeram churn — base para o LTV estimado
+tenure_medio_churn = X_train[y_train == 1]['tenure'].mean()
+print(f'Tenure médio dos clientes com churn: {tenure_medio_churn:.1f} meses')
+
+custo_campanha = 50
+
+# %%
+monthly  = X_test['MonthlyCharges'].values
+y_actual = y_test.values
+
+vp_idx = (y_pred_test == 1) & (y_actual == 1)  # detectou churn corretamente
+fn_idx = (y_pred_test == 0) & (y_actual == 1)  # churn não detectado
+fp_idx = (y_pred_test == 1) & (y_actual == 0)  # alarme falso
+
+# Cenário 1 — Sem modelo
+perda_sem_modelo = (monthly[y_actual == 1] * tenure_medio_churn).sum()
+
+# Cenário 2 — Com modelo
+receita_salva    = (monthly[vp_idx] * tenure_medio_churn).sum()
+perda_fn         = (monthly[fn_idx] * tenure_medio_churn).sum()
+custo_campanhas  = (vp_idx.sum() + fp_idx.sum()) * custo_campanha
+lucro_com_modelo = receita_salva - perda_fn - custo_campanhas
+
+# Cenário 3 — Modelo perfeito
+receita_perfeito  = (monthly[y_actual == 1] * tenure_medio_churn).sum()
+custo_perfeito    = y_actual.sum() * custo_campanha
+lucro_perfeito    = receita_perfeito - custo_perfeito
+
+# Valor incremental: quanto o modelo gera vs não fazer nada (baseline = 0)
+valor_incremental = lucro_com_modelo
+
+print(f'\nCenário 1 — Sem modelo')
+print(f'  Perda total com churns:               R$ {perda_sem_modelo:,.2f}')
+
+print(f'\nCenário 2 — Com modelo')
+print(f'  Receita salva (VP):                   R$ {receita_salva:,.2f}')
+print(f'  Perda por churns não detectados (FN): R$ {perda_fn:,.2f}')
+print(f'  Custo campanhas ({vp_idx.sum() + fp_idx.sum()} clientes × R$50):  R$ {custo_campanhas:,.2f}')
+print(f'  Resultado líquido:                    R$ {lucro_com_modelo:,.2f}')
+
+print(f'\nCenário 3 — Modelo perfeito (teto teórico)')
+print(f'  Resultado líquido:                    R$ {lucro_perfeito:,.2f}')
+
+print(f'\nValor incremental do modelo vs não agir: R$ {valor_incremental:,.2f}')
+print(f'Aproveitamento vs modelo perfeito:       {lucro_com_modelo/lucro_perfeito:.1%}')
+
+### Interpretação:
+### Sem modelo a empresa perderia R$500.683 em receita de clientes que cancelam.
+### Com o modelo, 322 dos 374 churns reais foram detectados (Recall 86%) e retidos,
+### gerando resultado líquido de R$353.953 — transformando uma perda em resultado positivo.
+###
+### O modelo atinge 73.4% do teto teórico (modelo perfeito = R$481.983).
+###
+### Trade-off: 384 Falsos Positivos geraram R$19.200 em campanhas desnecessárias,
+### mas apenas 52 clientes escaparam sem ser abordados. Para o objetivo definido
+### — onde perder um cliente vale mais do que o custo de uma campanha — esse trade-off é justificável.
 
 # %%
