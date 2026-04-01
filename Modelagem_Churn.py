@@ -497,7 +497,7 @@ print(f'Aproveitamento vs modelo perfeito:       {lucro_com_modelo/lucro_perfeit
 
 # %%
 import joblib
-
+print(pipeline_final.feature_names_in_)
 joblib.dump(pipeline_final, 'model/pipeline_churn.pkl')
 print('Modelo salvo em model/pipeline_churn.pkl')
 
