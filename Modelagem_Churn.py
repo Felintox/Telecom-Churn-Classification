@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import optuna
+import xgboost as xgb
 
 from sklearn.model_selection import train_test_split, cross_val_score, cross_val_predict
 from sklearn.pipeline import Pipeline
@@ -14,7 +15,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (confusion_matrix, ConfusionMatrixDisplay,
                              classification_report, fbeta_score, make_scorer)
-import xgboost as xgb
+
 
 
 # %% [markdown]
