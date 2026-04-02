@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import optuna
+import sklearn
 import xgboost as xgb
 
 from sklearn.model_selection import train_test_split, cross_val_score, cross_val_predict
@@ -507,5 +508,3 @@ print('Modelo salvo em model/pipeline_churn.pkl')
 # pipeline = joblib.load('model/pipeline_churn.pkl')
 # predicoes = pipeline.predict(novos_dados)
 # ```
-
-# %%

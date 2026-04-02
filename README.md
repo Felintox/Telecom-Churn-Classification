@@ -1,6 +1,6 @@
-# Telecom Customer Churn — Classificação
+# Telecom Customer Churn — Classificação + Deploy
 
-Modelo de classificação para prever churn de clientes de uma empresa de telecomunicações, permitindo ações proativas de retenção antes do cancelamento.
+Modelo de classificação para prever churn de clientes de uma empresa de telecomunicações, com deploy em produção via API REST — permitindo integração com sistemas de CRM e ações proativas de retenção antes do cancelamento.
 
 **Dataset:** [IBM Telco Customer Churn](https://www.kaggle.com/datasets/blastchar/telco-customer-churn) — 7.032 clientes, 20 features.
 
@@ -25,6 +25,10 @@ Dados brutos
   → Baseline (Logistic Regression, Random Forest, XGBoost)
   → Tuning com Optuna (F2-score, cv=5)
   → Avaliação final no conjunto de teste
+  → Serialização da pipeline completa (joblib)
+  → API REST com FastAPI
+  → Containerização com Docker
+  → Deploy no Google Cloud Run
 ```
 
 ---
@@ -75,9 +79,63 @@ O trade-off de 384 Falsos Positivos (R$19.200 em campanhas desnecessárias) é j
 
 ---
 
+## Deploy
+
+Um modelo que fica restrito a um notebook não gera valor real. O objetivo do deploy é transformar o modelo em um serviço consumível — onde um sistema de CRM, uma plataforma de marketing ou qualquer aplicação pode enviar os dados de um cliente e receber, em tempo real, a probabilidade de churn.
+
+### API REST com FastAPI
+
+A pipeline treinada (pré-processamento + modelo) foi serializada e exposta como API REST usando FastAPI. O endpoint `/predict` recebe os dados de um cliente em JSON e retorna a predição com a probabilidade associada.
+
+```bash
+# Exemplo de chamada
+curl -X POST "http://localhost:8000/predict" \
+  -H "Content-Type: application/json" \
+  -d '{"gender": "Female", "SeniorCitizen": 0, "tenure": 12, ...}'
+
+# Resposta
+{"churn": true, "probabilidade_churn": 0.7821}
+```
+
+### Docker
+
+Empacotar a API em um container Docker garante que ela rode de forma idêntica em qualquer ambiente — sem conflitos de dependências, sem o clássico "funciona na minha máquina". A imagem contém tudo que a aplicação precisa: código, dependências e o modelo serializado.
+
+```bash
+docker build -t churn-api .
+docker run -p 8080:8080 churn-api
+```
+
+### Google Cloud Run
+
+O Cloud Run é a escolha natural para este tipo de serviço: escala automaticamente conforme a demanda, cobra apenas pelo tempo de processamento real e não exige gerenciamento de servidores. A API fica disponível em uma URL pública, pronta para ser integrada a qualquer sistema.
+
+```bash
+gcloud builds submit --tag gcr.io/PROJECT_ID/churn-api
+gcloud run deploy churn-api --image gcr.io/PROJECT_ID/churn-api \
+  --platform managed --region us-central1 --allow-unauthenticated
+```
+
+**API disponível em:** `https://churn-api-xxxxxx-uc.a.run.app/docs`
+
+---
+
+## Estrutura do Projeto
+
+```
+churn-api/
+├── main.py               # API FastAPI
+├── model/
+│   └── pipeline_churn.pkl  # Pipeline serializada (pré-processamento + modelo)
+├── requirements.txt
+└── Dockerfile
+```
+
+---
+
 ## Tecnologias
 
-- Python, pandas, numpy
-- scikit-learn (Pipeline, ColumnTransformer, LogisticRegression)
-- XGBoost, Optuna
-- matplotlib, seaborn
+- **Modelagem:** Python, pandas, numpy, scikit-learn, XGBoost, Optuna
+- **API:** FastAPI, uvicorn, pydantic
+- **Infra:** Docker, Google Cloud Run
+- **Visualização:** matplotlib, seaborn
