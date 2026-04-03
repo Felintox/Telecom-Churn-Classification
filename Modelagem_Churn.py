@@ -96,6 +96,11 @@ X_train, X_test, y_train, y_test = train_test_split(
 print(f'Treino:  {X_train.shape[0]} linhas')
 print(f'Teste:   {X_test.shape[0]} linhas')
 
+#%%
+# Salva 70 clientes do conjunto de teste para demo do bot
+clientes_demo = X_test.sample(70, random_state=42)
+clientes_demo.to_csv("clientes_demo.csv", index=False)
+print(f"Salvo: {clientes_demo.shape[0]} clientes")
 
 # %% [markdown]
 # ## 5.0 Análise Exploratória dos Dados (EDA)
