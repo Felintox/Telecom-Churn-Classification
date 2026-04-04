@@ -29,6 +29,7 @@ Dados brutos
   → API REST com FastAPI
   → Containerização com Docker
   → Deploy no Google Cloud Run
+  → Bot Telegram consumindo a API em produção
 ```
 
 ---
@@ -85,11 +86,15 @@ Um modelo que fica restrito a um notebook não gera valor real. O objetivo do de
 
 ### API REST com FastAPI
 
-A pipeline treinada (pré-processamento + modelo) foi serializada e exposta como API REST usando FastAPI. O endpoint `/predict` recebe os dados de um cliente em JSON e retorna a predição com a probabilidade associada.
+A pipeline treinada (pré-processamento + modelo) foi serializada e exposta como API REST usando FastAPI. A API oferece os seguintes endpoints:
+
+- **`GET /`** — health check básico
+- **`GET /health`** — status da API
+- **`POST /predict`** — recebe os dados de um cliente em JSON e retorna a predição com a probabilidade associada
 
 ```bash
-# Exemplo de chamada
-curl -X POST "http://localhost:8000/predict" \
+# Predição individual
+curl -X POST "https://churn-api-xxxxxxxx.us-central1.run.app/predict" \
   -H "Content-Type: application/json" \
   -d '{"gender": "Female", "SeniorCitizen": 0, "tenure": 12, ...}'
 
@@ -116,17 +121,27 @@ gcloud run deploy churn-api --image gcr.io/PROJECT_ID/churn-api \
   --platform managed --region us-central1 --allow-unauthenticated
 ```
 
-**API disponível em:** `https://churn-api-xxxxxx-uc.a.run.app/docs`
+**API disponível em:** `https://churn-api-729603812414.us-central1.run.app/docs`
+
+### Bot Telegram
+
+Para demonstrar a API em uso real, um bot Telegram consome o endpoint `/predict` e apresenta os resultados de forma interativa. A cada comando `/start`, o bot sorteia clientes do dataset `clientes_demo.csv`, envia as predições para a API e exibe os resultados com navegação por botões.
 
 ---
 
 ## Estrutura do Projeto
 
 ```
-churn-api/
-├── main.py               # API FastAPI
+Telecom-Churn-Classification/
+├── main.py                    # API FastAPI (predict + health check)
+├── bot.py                     # Bot Telegram consumindo a API
+├── clientes_demo.csv          # Amostra do dataset para demonstração (70 obs.)
+├── Modelagem_Churn.py         # Código completo de modelagem (EDA → tuning)
+├── Modelagem_Churn.ipynb      # Versão notebook do pipeline de modelagem
 ├── model/
-│   └── pipeline_churn.pkl  # Pipeline serializada (pré-processamento + modelo)
+│   └── pipeline_churn.pkl     # Pipeline serializada (pré-processamento + modelo)
+├── data/
+│   └── WA_Fn-UseC_-Telco-Customer-Churn.csv
 ├── requirements.txt
 └── Dockerfile
 ```
@@ -138,4 +153,5 @@ churn-api/
 - **Modelagem:** Python, pandas, numpy, scikit-learn, XGBoost, Optuna
 - **API:** FastAPI, uvicorn, pydantic
 - **Infra:** Docker, Google Cloud Run
+- **Integração:** Bot Telegram (python-telegram-bot)
 - **Visualização:** matplotlib, seaborn
