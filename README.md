@@ -68,6 +68,8 @@ O baseline foi avaliado com **F2 e AUC-ROC** — garantindo que a seleção dos 
 
 ### Avaliação no Conjunto de Teste
 
+<img width="507" height="453" alt="download" src="https://github.com/user-attachments/assets/8cf47f6c-6472-49d4-a60c-eec095538f81" />
+
 | Métrica | Classe 0 (No Churn) | Classe 1 (Churn) |
 |---|---|---|
 | Precision | 0.93 | 0.44 |
@@ -82,12 +84,18 @@ O modelo detectou **324 dos 374 churns reais** (Recall 87%) — trade-off coeren
 
 ### Importância Nativa do XGBoost (Top 15)
 
+<img width="990" height="590" alt="download" src="https://github.com/user-attachments/assets/569a3e3b-018c-4339-9152-26419534064d" />
+
+
 - `Contract_Month-to-month` domina com folga (~0.35) — ser cliente mensal é de longe o maior preditor de churn
 - `OnlineSecurity_No` e `InternetService_Fiber optic` aparecem em seguida (~0.06)
 - Os dois outros tipos de contrato (`Two year`, `One year`) entram no top 5 — confirmando que o tipo de contrato é a variável mais relevante
 - `tenure` aparece apenas na 11ª posição — relevante, mas menos do que as categóricas
 
 ### SHAP — Explicabilidade
+
+<img width="790" height="940" alt="download" src="https://github.com/user-attachments/assets/82876b4b-2f05-4d1f-9891-cc42ad820477" />
+
 
 - `Contract_Month-to-month`: clientes com contrato mensal têm forte impacto positivo no churn
 - `tenure` baixo aumenta o churn, tenure alto reduz — clientes antigos são mais fiéis
