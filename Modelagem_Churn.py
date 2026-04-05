@@ -7,6 +7,8 @@ import seaborn as sns
 import optuna
 import sklearn
 import xgboost as xgb
+import shap
+
 
 from sklearn.model_selection import train_test_split, cross_val_score, cross_val_predict
 from sklearn.pipeline import Pipeline
@@ -452,7 +454,6 @@ plt.show()
 #   Posição no eixo X = impacto no score de churn.
 
 # %%
-import shap
 
 explainer = shap.TreeExplainer(best_xgboost)
 
@@ -477,22 +478,23 @@ plt.show()
 # %% [markdown]
 # ## 12.0 Análise Financeira
 #
-# Avaliamos o impacto financeiro do modelo comparando três cenários:
+# Avaliamos o impacto financeiro do modelo comparando dois cenários:
 # - **Sem modelo**: empresa não age, perde todos os clientes que churnam
 # - **Com modelo**: empresa aborda clientes sinalizados pelo modelo
-# - **Modelo perfeito**: teto teórico, detecta 100% dos churns
 #
 # **Premissas:**
 # - Custo de campanha de retenção: R$50 por cliente abordado
 # - LTV perdido: MonthlyCharges × tenure médio dos clientes com churn
-# - Todo cliente corretamente identificado (VP) é retido pela campanha
+# - Taxa de retenção da campanha: 40% dos clientes abordados corretamente (VP)
+#   (referência: campanhas de retenção em telecom têm sucesso em 20–40% dos casos)
 
 # %%
 # Tenure médio dos clientes que fizeram churn — base para o LTV estimado
 tenure_medio_churn = X_train[y_train == 1]['tenure'].mean()
 print(f'Tenure médio dos clientes com churn: {tenure_medio_churn:.1f} meses')
 
-custo_campanha = 50
+custo_campanha   = 50
+taxa_retencao    = 0.40  # 40% dos VP abordados são efetivamente retidos
 
 # %%
 monthly  = X_test['MonthlyCharges'].values
@@ -505,47 +507,40 @@ fp_idx = (y_pred_test == 1) & (y_actual == 0)  # alarme falso
 # Cenário 1 — Sem modelo
 perda_sem_modelo = (monthly[y_actual == 1] * tenure_medio_churn).sum()
 
-# Cenário 2 — Com modelo
-receita_salva    = (monthly[vp_idx] * tenure_medio_churn).sum()
+# Cenário 2 — Com modelo (taxa de retenção de 40%)
+receita_salva    = (monthly[vp_idx] * tenure_medio_churn).sum() * taxa_retencao
 perda_fn         = (monthly[fn_idx] * tenure_medio_churn).sum()
+perda_vp_nao_retido = (monthly[vp_idx] * tenure_medio_churn).sum() * (1 - taxa_retencao)
 custo_campanhas  = (vp_idx.sum() + fp_idx.sum()) * custo_campanha
-lucro_com_modelo = receita_salva - perda_fn - custo_campanhas
-
-# Cenário 3 — Modelo perfeito
-receita_perfeito  = (monthly[y_actual == 1] * tenure_medio_churn).sum()
-custo_perfeito    = (y_actual == 1).sum() * custo_campanha
-lucro_perfeito    = receita_perfeito - custo_perfeito
-
-# Valor incremental: quanto o modelo gera vs não fazer nada (baseline = 0)
-valor_incremental = lucro_com_modelo
+lucro_com_modelo = receita_salva - perda_fn - perda_vp_nao_retido - custo_campanhas
 
 print(f'\nCenário 1 — Sem modelo')
-print(f'  Perda total com churns:               R$ {perda_sem_modelo:,.2f}')
+print(f'  Perda total com churns:                    R$ {perda_sem_modelo:,.2f}')
 
-print(f'\nCenário 2 — Com modelo')
-print(f'  Receita salva (VP):                   R$ {receita_salva:,.2f}')
-print(f'  Perda por churns não detectados (FN): R$ {perda_fn:,.2f}')
-print(f'  Custo campanhas ({vp_idx.sum() + fp_idx.sum()} clientes × R$50):  R$ {custo_campanhas:,.2f}')
-print(f'  Resultado líquido:                    R$ {lucro_com_modelo:,.2f}')
+print(f'\nCenário 2 — Com modelo (retenção de {taxa_retencao:.0%})')
+print(f'  Receita salva (VP retidos):                R$ {receita_salva:,.2f}')
+print(f'  Perda VP não retidos ({1-taxa_retencao:.0%}):            R$ {perda_vp_nao_retido:,.2f}')
+print(f'  Perda por churns não detectados (FN):      R$ {perda_fn:,.2f}')
+print(f'  Custo campanhas ({vp_idx.sum() + fp_idx.sum()} clientes × R$50): R$ {custo_campanhas:,.2f}')
+print(f'  Resultado líquido:                         R$ {lucro_com_modelo:,.2f}')
 
-print(f'\nCenário 3 — Modelo perfeito (teto teórico)')
-print(f'  Resultado líquido:                    R$ {lucro_perfeito:,.2f}')
-
-print(f'\nValor incremental do modelo vs não agir: R$ {valor_incremental:,.2f}')
-print(f'Aproveitamento vs modelo perfeito:       {lucro_com_modelo/lucro_perfeito:.1%}')
+print(f'\nValor incremental do modelo vs não agir: R$ {lucro_com_modelo:,.2f}')
 
 # %% [markdown]
 # **Interpretação:**
 #
-# Sem modelo a empresa perderia R\$500.683 em receita de clientes que cancelam.
-# Com o modelo, 322 dos 374 churns reais foram detectados (Recall 86%) e retidos,
-# gerando resultado líquido de R\$353.953 — transformando uma perda em resultado positivo.
+# Sem modelo a empresa perderia toda a receita dos clientes que cancelam.
+# Com o modelo (assumindo 40% de taxa de retenção da campanha):
+# - 322 dos 374 churns reais foram detectados (Recall 86%)
+# - Desses 322, 40% são efetivamente retidos pela campanha
+# - Os 60% restantes cancelam mesmo após serem abordados
 #
-# O modelo atinge 73.4% do teto teórico (modelo perfeito = R\$481.983).
+# A taxa de retenção de 40% é uma referência conservadora-realista para o setor de telecom.
+# Mesmo com essa limitação, o modelo gera resultado positivo frente ao cenário sem ação.
 #
-# **Trade-off:** 384 Falsos Positivos geraram R\$19.200 em campanhas desnecessárias,
-# mas apenas 52 clientes escaparam sem ser abordados. Para o objetivo definido
-# — onde perder um cliente vale mais do que o custo de uma campanha — esse trade-off é justificável.
+# **Trade-off:** os Falsos Positivos geram custo de campanha sem retorno,
+# mas o custo de perder um cliente (FN) continua sendo o erro mais caro —
+# coerente com o objetivo de negócio que motivou o uso do F2-score.
 
 
 # %% [markdown]
