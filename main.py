@@ -1,18 +1,36 @@
 import joblib
 import pandas as pd
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
+from typing import List
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-# Carrega a pipeline completa (pré-processamento + modelo)
-pipeline = joblib.load("model/pipeline_churn.pkl")
+# ─────────────────────────────────────────
+# RATE LIMITING
+# ─────────────────────────────────────────
+limiter = Limiter(key_func=get_remote_address)
 
+# ─────────────────────────────────────────
+# APP
+# ─────────────────────────────────────────
 app = FastAPI(
     title="Churn Prediction API",
     description="API para predição de churn de clientes",
-    version="1.0.0"
+    version="2.0.0"
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Define o schema de entrada — exatamente as features do modelo
+# ─────────────────────────────────────────
+# MODELO
+# ─────────────────────────────────────────
+pipeline = joblib.load("model/pipeline_churn.pkl")
+
+# ─────────────────────────────────────────
+# SCHEMAS
+# ─────────────────────────────────────────
 class Cliente(BaseModel):
     gender: str
     SeniorCitizen: int
@@ -34,7 +52,21 @@ class Cliente(BaseModel):
     MonthlyCharges: float
     TotalCharges: float
 
+class BatchRequest(BaseModel):
+    clientes: List[Cliente]
 
+# ─────────────────────────────────────────
+# HELPERS
+# ─────────────────────────────────────────
+def preprocessar(dados: pd.DataFrame) -> pd.DataFrame:
+    dados = dados.copy()
+    dados['SeniorCitizen'] = dados['SeniorCitizen'].astype('object')
+    dados['TotalCharges'] = dados['TotalCharges'].astype('float64')
+    return dados
+
+# ─────────────────────────────────────────
+# ENDPOINTS
+# ─────────────────────────────────────────
 @app.get("/")
 def root():
     return {"status": "API de Churn funcionando"}
@@ -46,12 +78,10 @@ def health():
 
 
 @app.post("/predict")
-def predict(cliente: Cliente):
+@limiter.limit("30/minute")
+def predict(request: Request, cliente: Cliente):
     dados = pd.DataFrame([cliente.model_dump()])
-    
-    # replica o pré-processamento feito antes da pipeline no treinamento
-    dados['SeniorCitizen'] = dados['SeniorCitizen'].astype('object')
-    dados['TotalCharges'] = dados['TotalCharges'].astype('float64')
+    dados = preprocessar(dados)
 
     probabilidade = pipeline.predict_proba(dados)[0][1]
     churn = probabilidade >= 0.5
@@ -60,3 +90,22 @@ def predict(cliente: Cliente):
         "churn": bool(churn),
         "probabilidade_churn": round(float(probabilidade), 4)
     }
+
+
+@app.post("/predict_batch")
+@limiter.limit("4/minute")
+def predict_batch(request: Request, batch: BatchRequest):
+    dados = pd.DataFrame([c.model_dump() for c in batch.clientes])
+    dados = preprocessar(dados)
+
+    probabilidades = pipeline.predict_proba(dados)[:, 1]
+
+    resultados = [
+        {
+            "churn": bool(prob >= 0.5),
+            "probabilidade_churn": round(float(prob), 4)
+        }
+        for prob in probabilidades
+    ]
+
+    return {"predicoes": resultados, "total": len(resultados)}
