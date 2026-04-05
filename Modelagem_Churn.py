@@ -340,8 +340,9 @@ for nome, estimador in modelos:
 # - XGBoost:             AUC-ROC ≈ 0.8259
 # - Random Forest:       AUC-ROC ≈ 0.8175
 #
-# A Regressão Logística superou os modelos mais complexos, indicando que as relações
-# entre features e churn são predominantemente lineares neste dataset.
+# A Regressão Logística liderou o baseline em AUC-ROC. Parte dessa vantagem pode ser
+# explicada pela multicolinearidade não tratada (tenure × TotalCharges), que penaliza
+# menos a LR nessa métrica do que em coeficientes individuais.
 
 
 # %% [markdown]
@@ -442,7 +443,7 @@ print(f'Melhores parâmetros: {study_xgboost.best_params}')
 # Com os melhores hiperparâmetros encontrados, retreinamos em **todo** o conjunto de treino.
 # O conjunto de teste é tocado **uma única vez** aqui, simulando dados completamente novos.
 #
-# XGBoost teve melhor F2 no tuning (0.7519 vs 0.7269 da Logistic).
+# XGBoost teve melhor F2 no tuning (0.7512 vs 0.7270 da Logistic).
 # Modelo final escolhido: XGBoost com os melhores parâmetros encontrados pelo Optuna.
 
 # %%
@@ -464,6 +465,19 @@ print(classification_report(y_test, y_pred_test))
 ConfusionMatrixDisplay(confusion_matrix(y_test, y_pred_test)).plot()
 plt.title('XGBoost — Conjunto de Teste')
 plt.show()
+
+# %% [markdown]
+# **Avaliação no conjunto de teste:**
+#
+# | Métrica    | Classe 0 (No Churn) | Classe 1 (Churn) |
+# |------------|---------------------|------------------|
+# | Precision  | 0.93                | 0.44             |
+# | Recall     | 0.59                | 0.89             |
+# | F1-score   | 0.73                | 0.59             |
+#
+# O modelo detectou 331 dos 374 churns reais (Recall 89%) ao custo de uma Precision
+# baixa na classe 1 (0.44) — trade-off esperado e coerente com o objetivo de maximizar
+# o F2-score, que prioriza o Recall.
 
 # %% [markdown]
 # ## 11.0 Feature Importance

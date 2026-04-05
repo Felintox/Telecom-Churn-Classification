@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python3)",
       "Bash(python)",
-      "Bash(chcp 65001)"
+      "Bash(chcp 65001)",
+      "Bash(python3 -c ':*)"
     ]
   }
 }
