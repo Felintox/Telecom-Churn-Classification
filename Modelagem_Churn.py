@@ -5,9 +5,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import optuna
-import sklearn
 import xgboost as xgb
 import shap
+import joblib
 
 
 from sklearn.model_selection import train_test_split, cross_val_score, cross_val_predict
@@ -232,6 +232,36 @@ plt.show()
 # - `Gender`: distribuição praticamente idêntica — baixo poder discriminativo esperado.
 # - `PhoneService` / `MultipleLines` / `StreamingTV` / `StreamingMovies`: diferenças pequenas.
 
+# %% [markdown]
+# ### 5.3 Análise de Segmentos — Contract × InternetService
+#
+# Os stacked bars anteriores mostraram que `Contract` e `InternetService` têm
+# as maiores diferenças de taxa de churn entre categorias.
+# Aqui cruzamos as duas para ver como se combinam por segmento.
+
+# %%
+heatmap_data = pd.crosstab(
+    X_train['Contract'],
+    X_train['InternetService'],
+    values=y_train,
+    aggfunc='mean'
+) * 100  # taxa de churn em %
+
+plt.figure(figsize=(8, 4))
+sns.heatmap(heatmap_data, annot=True, fmt='.1f', cmap='RdYlGn_r',
+            linewidths=0.5, vmin=0, vmax=60,
+            annot_kws={'size': 12})
+plt.title('Taxa de Churn (%) por Contract × InternetService')
+plt.ylabel('Contract')
+plt.xlabel('InternetService')
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# - **Month-to-month + Fiber optic: 55%** — segmento com maior taxa de churn na base
+# - **Month-to-month + DSL: 32.5%** — segundo maior, mas bem abaixo
+# - Contratos **One year** e **Two year** reduzem drasticamente o churn em todos os tipos de internet,
+#   chegando a 1–2% nos contratos de dois anos
 
 # %% [markdown]
 # ## 6.0 Pré-processamento — Pipeline Sklearn
@@ -342,7 +372,7 @@ def objective_logistic(trial):
 
     # 'l1' não é compatível com 'lbfgs'
     if solver == 'lbfgs' and penalty == 'l1':
-        raise 0.0 #"essa combinação é impossível, trata como o pior resultado possível e não tente de novo"
+        return 0.0  # combinação inválida — descarta sem poluir o histórico
 
     model = LogisticRegression(
         C=C, solver=solver, penalty=penalty,
@@ -508,39 +538,37 @@ fp_idx = (y_pred_test == 1) & (y_actual == 0)  # alarme falso
 perda_sem_modelo = (monthly[y_actual == 1] * tenure_medio_churn).sum()
 
 # Cenário 2 — Com modelo (taxa de retenção de 40%)
-receita_salva    = (monthly[vp_idx] * tenure_medio_churn).sum() * taxa_retencao
-perda_fn         = (monthly[fn_idx] * tenure_medio_churn).sum()
-perda_vp_nao_retido = (monthly[vp_idx] * tenure_medio_churn).sum() * (1 - taxa_retencao)
-custo_campanhas  = (vp_idx.sum() + fp_idx.sum()) * custo_campanha
-lucro_com_modelo = receita_salva - perda_fn - perda_vp_nao_retido - custo_campanhas
+# Valor incremental = o que o modelo gerou a mais vs não fazer nada
+# Receita salva: VP detectados × 40% retidos × LTV estimado
+# Custo: todos os abordados (VP + FP) × custo da campanha
+receita_salva   = (monthly[vp_idx] * tenure_medio_churn).sum() * taxa_retencao
+custo_campanhas = (vp_idx.sum() + fp_idx.sum()) * custo_campanha
+valor_incremental = receita_salva - custo_campanhas
 
 print(f'\nCenário 1 — Sem modelo')
-print(f'  Perda total com churns:                    R$ {perda_sem_modelo:,.2f}')
+print(f'  Perda estimada com churns:                 R$ {perda_sem_modelo:,.2f}')
 
 print(f'\nCenário 2 — Com modelo (retenção de {taxa_retencao:.0%})')
-print(f'  Receita salva (VP retidos):                R$ {receita_salva:,.2f}')
-print(f'  Perda VP não retidos ({1-taxa_retencao:.0%}):            R$ {perda_vp_nao_retido:,.2f}')
-print(f'  Perda por churns não detectados (FN):      R$ {perda_fn:,.2f}')
-print(f'  Custo campanhas ({vp_idx.sum() + fp_idx.sum()} clientes × R$50): R$ {custo_campanhas:,.2f}')
-print(f'  Resultado líquido:                         R$ {lucro_com_modelo:,.2f}')
-
-print(f'\nValor incremental do modelo vs não agir: R$ {lucro_com_modelo:,.2f}')
+print(f'  Clientes com churn detectados (VP):        {vp_idx.sum()} de {(y_actual==1).sum()}')
+print(f'  Receita salva (VP × 40% retidos):          R$ {receita_salva:,.2f}')
+print(f'  Custo campanhas ({vp_idx.sum() + fp_idx.sum()} clientes × R$50):  R$ {custo_campanhas:,.2f}')
+print(f'  Valor incremental vs não agir:             R$ {valor_incremental:,.2f}')
 
 # %% [markdown]
 # **Interpretação:**
 #
-# Sem modelo a empresa perderia toda a receita dos clientes que cancelam.
-# Com o modelo (assumindo 40% de taxa de retenção da campanha):
-# - 322 dos 374 churns reais foram detectados (Recall 86%)
-# - Desses 322, 40% são efetivamente retidos pela campanha
-# - Os 60% restantes cancelam mesmo após serem abordados
+# O valor incremental responde à pergunta direta: quanto a empresa ganha a mais
+# usando o modelo versus não fazer nada?
 #
-# A taxa de retenção de 40% é uma referência conservadora-realista para o setor de telecom.
-# Mesmo com essa limitação, o modelo gera resultado positivo frente ao cenário sem ação.
+# - Receita salva: churns detectados × taxa de retenção da campanha (40%) × LTV estimado
+# - Custo: todos os clientes abordados (VP + FP) × R$50 por campanha
 #
-# **Trade-off:** os Falsos Positivos geram custo de campanha sem retorno,
-# mas o custo de perder um cliente (FN) continua sendo o erro mais caro —
-# coerente com o objetivo de negócio que motivou o uso do F2-score.
+# FN e VP não retidos são perdas que ocorreriam de qualquer forma — não entram no cálculo
+# incremental, pois não representam diferença entre agir ou não agir.
+#
+# Taxa de retenção de 40%: referência conservadora-realista para o setor de telecom.
+# Os Falsos Positivos encarecem a operação sem retorno — coerente com o F2-score,
+# que penaliza FN mais do que FP, mas não ignora o custo de precisão baixa.
 
 
 # %% [markdown]
@@ -551,7 +579,6 @@ print(f'\nValor incremental do modelo vs não agir: R$ {lucro_com_modelo:,.2f}')
 # sem necessidade de pré-processar manualmente antes de chamar o `predict`.
 
 # %%
-import joblib
 print(pipeline_final.feature_names_in_)
 joblib.dump(pipeline_final, 'model/pipeline_churn.pkl')
 print('Modelo salvo em model/pipeline_churn.pkl')
