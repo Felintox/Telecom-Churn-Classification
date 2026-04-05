@@ -459,8 +459,8 @@ print(f'Melhores parâmetros: {study_xgboost.best_params}')
 
 # %% [markdown]
 # **Resultado após tuning** (com class_weight / scale_pos_weight incluídos):
-# - Logistic Regression: F2 ≈ 0.7270  (class_weight='balanced')
-# - XGBoost:             F2 ≈ 0.7512  ← modelo escolhido
+# - Logistic Regression: F2 ≈ 0.7283  (class_weight='balanced')
+# - XGBoost:             F2 ≈ 0.7517  ← modelo escolhido
 #
 # O XGBoost superou a Logística após incluir o `scale_pos_weight` no espaço de busca,
 # o que permitiu ao modelo aprender a penalizar mais os erros na classe minoritária (churn).
@@ -472,7 +472,7 @@ print(f'Melhores parâmetros: {study_xgboost.best_params}')
 # Com os melhores hiperparâmetros encontrados, retreinamos em **todo** o conjunto de treino.
 # O conjunto de teste é tocado **uma única vez** aqui, simulando dados completamente novos.
 #
-# XGBoost teve melhor F2 no tuning (0.7512 vs 0.7270 da Logistic).
+# XGBoost teve melhor F2 no tuning (0.7517 vs 0.7283 da Logistic).
 # Modelo final escolhido: XGBoost com os melhores parâmetros encontrados pelo Optuna.
 
 # %%
@@ -504,7 +504,7 @@ plt.show()
 # | Recall     | 0.59                | 0.89             |
 # | F1-score   | 0.73                | 0.59             |
 #
-# O modelo detectou 331 dos 374 churns reais (Recall 89%) ao custo de uma Precision
+# O modelo detectou 324 dos 374 churns reais (Recall 87%) ao custo de uma Precision
 # baixa na classe 1 (0.44) — trade-off esperado e coerente com o objetivo de maximizar
 # o F2-score, que prioriza o Recall.
 
@@ -637,19 +637,19 @@ print(f'  Valor incremental vs não agir:             R$ {valor_incremental:,.2f
 # O tenure médio dos churners é usado porque representa o tempo que um cliente retido
 # provavelmente ficaria antes de sair — mais conservador do que usar o tenure geral.
 #
-# **Cenário com modelo (valor incremental: R$ 142.809):**
-# O modelo detectou 331 dos 374 churns reais. Desses 331:
-# - 40% são efetivamente retidos pela campanha → receita salva: R$ 180.359
+# **Cenário com modelo (valor incremental: R$ 140.184):**
+# O modelo detectou 324 dos 374 churns reais. Desses 324:
+# - 40% são efetivamente retidos pela campanha → receita salva: R$ 176.234
 #   (MonthlyCharges de cada VP × 18.2 meses × 40%)
 # - 60% cancelam mesmo após serem abordados → perda inevitável
 #
-# O custo da operação é R$ 37.550 — os 751 clientes abordados (331 VP + 420 FP) × R$50.
-# Os 420 FP são o custo da imprecisão do modelo: campanhas disparadas sem retorno.
+# O custo da operação é R$ 36.050 — os 721 clientes abordados (324 VP + 397 FP) × R$50.
+# Os 397 FP são o custo da imprecisão do modelo: campanhas disparadas sem retorno.
 #
-# Valor incremental = R$ 180.359 − R$ 37.550 = **R$ 142.809**
+# Valor incremental = R$ 176.234 − R$ 36.050 = **R$ 140.184**
 # É o ganho real do modelo versus não fazer nada.
 #
-# FN (43 churners não detectados) e VP não retidos (60% dos 331) são perdas que
+# FN (50 churners não detectados) e VP não retidos (60% dos 324) são perdas que
 # ocorreriam de qualquer forma — não entram no cálculo incremental.
 
 
