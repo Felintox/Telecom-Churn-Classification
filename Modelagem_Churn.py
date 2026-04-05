@@ -62,13 +62,20 @@ data['SeniorCitizen'] = data['SeniorCitizen'].astype('object')
 # %% [markdown]
 # `TotalCharges` está como `object` em vez de `float64`.
 # Existem 11 registros com valor `' '` (espaço vazio) que impedem a conversão direta.
-# Removemos esses registros — representam menos de 0.2% do dataset.
+# Verificamos: todos os 11 têm tenure=0 e são os únicos com tenure=0 no dataset —
+# clientes sem nenhum mês de permanência que nunca geraram cobrança.
+# Imputar a mediana seria inventar um valor sem base real para esses casos.
+# Removemos — representam menos de 0.2% do dataset.
 
 # %%
 masc1 = data[data['TotalCharges'] == ' '].index
+print(f'Registros com TotalCharges vazio: {len(masc1)}')
+print(f'tenure desses registros:\n{data.loc[masc1, "tenure"].value_counts()}')
+print(f'\nTotal de clientes com tenure=0 no dataset: {(data["tenure"] == 0).sum()}')
+
 data.drop(masc1, inplace=True)
 data['TotalCharges'] = data['TotalCharges'].astype('float64')
-print(f'Dataset após limpeza: {data.shape[0]} linhas e {data.shape[1]} colunas')
+print(f'\nDataset após limpeza: {data.shape[0]} linhas e {data.shape[1]} colunas')
 
 
 # %% [markdown]
@@ -296,6 +303,12 @@ preprocessor = ColumnTransformer(transformers=[
 # Comparamos três modelos com parâmetros default para identificar o melhor ponto de partida.
 # Métrica: AUC-ROC via `cross_val_score` (cv=5).
 # Matriz de confusão via `cross_val_predict` — sem data leakage.
+#
+# **Limitação conhecida:** a correlação forte entre `tenure` e `TotalCharges` (≈0.83),
+# observada na EDA, pode subestimar o desempenho da Regressão Logística devido à
+# multicolinearidade — modelos baseados em árvores (Random Forest, XGBoost) são
+# naturalmente imunes a esse efeito. A comparação do baseline não é inteiramente justa
+# para a LR. Ponto a ser tratado em versão futura.
 
 # %%
 modelos = [
