@@ -340,7 +340,7 @@ def objective_logistic(trial):
 
     # 'l1' não é compatível com 'lbfgs'
     if solver == 'lbfgs' and penalty == 'l1':
-        raise optuna.exceptions.TrialPruned()
+        raise 0.0 #"essa combinação é impossível, trata como o pior resultado possível e não tente de novo"
 
     model = LogisticRegression(
         C=C, solver=solver, penalty=penalty,
@@ -421,7 +421,61 @@ plt.title('XGBoost — Conjunto de Teste')
 plt.show()
 
 # %% [markdown]
-# ## 11.0 Análise Financeira
+# ## 11.0 Feature Importance
+#
+# ### 11.1 Importância Nativa do XGBoost
+#
+# Baseada na frequência com que cada feature é usada para fazer splits nas árvores.
+# Rápida e sem dependências extras, mas não indica direção nem magnitude do impacto.
+
+# %%
+importances = best_xgboost.feature_importances_
+feature_names = pipeline_final[:-1].get_feature_names_out()
+
+feat_imp = pd.Series(importances, index=feature_names).sort_values(ascending=False).head(15)
+
+plt.figure(figsize=(10, 6))
+feat_imp.sort_values().plot(kind='barh')
+plt.title('Feature Importance — XGBoost (Top 15)')
+plt.xlabel('Importância')
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# ### 11.2 SHAP — Explicabilidade do Modelo
+#
+# SHAP (SHapley Additive exPlanations) mostra o impacto real de cada feature
+# em cada predição individual — não só frequência de uso, mas direção e magnitude.
+#
+# - **Summary plot (beeswarm)**: cada ponto é uma observação do conjunto de teste.
+#   Cor vermelha = valor alto da feature, azul = valor baixo.
+#   Posição no eixo X = impacto no score de churn.
+
+# %%
+import shap
+
+explainer = shap.TreeExplainer(best_xgboost)
+
+X_test_transformed = pipeline_final[:-1].transform(X_test)
+shap_values = explainer.shap_values(X_test_transformed)
+
+plt.figure()
+shap.summary_plot(shap_values, X_test_transformed, feature_names=feature_names, show=False)
+plt.title('SHAP — Impacto das Features no Churn')
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# **Leitura do SHAP summary plot:**
+# - Features no topo têm maior impacto médio nas predições
+# - Pontos à direita (positivo) aumentam a probabilidade de churn
+# - Pontos à esquerda (negativo) reduzem a probabilidade de churn
+#
+# Isso permite identificar não só quais features importam, mas **como** elas influenciam o modelo.
+
+
+# %% [markdown]
+# ## 12.0 Análise Financeira
 #
 # Avaliamos o impacto financeiro do modelo comparando três cenários:
 # - **Sem modelo**: empresa não age, perde todos os clientes que churnam
@@ -495,7 +549,7 @@ print(f'Aproveitamento vs modelo perfeito:       {lucro_com_modelo/lucro_perfeit
 
 
 # %% [markdown]
-# ## 12.0 Salvando o Modelo
+# ## 13.0 Salvando o Modelo
 #
 # Salvamos a pipeline completa (pré-processamento + modelo) em um único arquivo `.pkl`.
 # Isso garante que qualquer dado novo passará pelas mesmas transformações automaticamente,
