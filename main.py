@@ -66,6 +66,9 @@ def preprocessar(dados: pd.DataFrame) -> pd.DataFrame:
 
 # ─────────────────────────────────────────
 # ENDPOINTS
+# /predict       — predição individual
+# /predict_batch — predição em lote; usado pelo bot Telegram que sorteia 10 clientes
+#                  e envia todos de uma vez, eliminando overhead de chamadas individuais
 # ─────────────────────────────────────────
 @app.get("/")
 def root():
