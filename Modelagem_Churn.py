@@ -1,5 +1,5 @@
 # %%
-# 1.0 Importação das Bibliotecas
+# 0.0 Importação das Bibliotecas
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -19,6 +19,34 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (confusion_matrix, ConfusionMatrixDisplay,
                              classification_report, fbeta_score, make_scorer)
 
+
+
+# %% [markdown]
+# ## 1.0 Dicionário de Dados
+#
+# | Feature | Descrição |
+# |---|---|
+# | `customerID` | Identificador único do cliente |
+# | `gender` | Gênero do cliente (`Male`, `Female`) |
+# | `SeniorCitizen` | Cliente é idoso (`1`) ou não (`0`) |
+# | `Partner` | Possui parceiro(a) (`Yes`, `No`) |
+# | `Dependents` | Possui dependentes (`Yes`, `No`) |
+# | `tenure` | Meses de permanência na empresa |
+# | `PhoneService` | Possui serviço de telefone (`Yes`, `No`) |
+# | `MultipleLines` | Possui múltiplas linhas (`Yes`, `No`, `No phone service`) |
+# | `InternetService` | Tipo de internet (`DSL`, `Fiber optic`, `No`) |
+# | `OnlineSecurity` | Possui segurança online (`Yes`, `No`, `No internet service`) |
+# | `OnlineBackup` | Possui backup online (`Yes`, `No`, `No internet service`) |
+# | `DeviceProtection` | Possui proteção de dispositivo (`Yes`, `No`, `No internet service`) |
+# | `TechSupport` | Possui suporte técnico (`Yes`, `No`, `No internet service`) |
+# | `StreamingTV` | Possui streaming de TV (`Yes`, `No`, `No internet service`) |
+# | `StreamingMovies` | Possui streaming de filmes (`Yes`, `No`, `No internet service`) |
+# | `Contract` | Tipo de contrato (`Month-to-month`, `One year`, `Two year`) |
+# | `PaperlessBilling` | Cobrança digital sem papel (`Yes`, `No`) |
+# | `PaymentMethod` | Método de pagamento (`Electronic check`, `Mailed check`, `Bank transfer (automatic)`, `Credit card (automatic)`) |
+# | `MonthlyCharges` | Valor cobrado mensalmente pelo serviço |
+# | `TotalCharges` | Valor total cobrado durante toda a permanência |
+# | `Churn` | Cliente cancelou o serviço (`Yes`, `No`) — variável alvo |
 
 
 # %% [markdown]
@@ -58,15 +86,6 @@ data.info()
 
 # %%
 data['SeniorCitizen'] = data['SeniorCitizen'].astype('object')
-
-# %% [markdown]
-# `TotalCharges` está como `object` em vez de `float64`.
-# Existem 11 registros com valor `' '` (espaço vazio) que impedem a conversão direta.
-# Verificamos: todos os 11 têm tenure=0 e são os únicos com tenure=0 no dataset —
-# clientes sem nenhum mês de permanência que nunca geraram cobrança.
-# Imputar a mediana seria inventar um valor sem base real para esses casos.
-# Removemos — representam menos de 0.2% do dataset.
-
 # %%
 masc1 = data[data['TotalCharges'] == ' '].index
 print(f'Registros com TotalCharges vazio: {len(masc1)}')
@@ -76,10 +95,16 @@ print(f'\nTotal de clientes com tenure=0 no dataset: {(data["tenure"] == 0).sum(
 data.drop(masc1, inplace=True)
 data['TotalCharges'] = data['TotalCharges'].astype('float64')
 print(f'\nDataset após limpeza: {data.shape[0]} linhas e {data.shape[1]} colunas')
-
+# %% [markdown]
+# `TotalCharges` está como `object` em vez de `float64`.
+# Existem 11 registros com valor `' '` (espaço vazio) que impedem a conversão direta.
+# Verificamos: todos os 11 têm tenure=0 e são os únicos com tenure=0 no dataset —
+# clientes sem nenhum mês de permanência que nunca geraram cobrança.
+# Imputar a mediana seria inventar um valor sem base real para esses casos.
+# Removemos — representam menos de 0.2% do dataset.
 
 # %% [markdown]
-# ## 4.0 Divisão Treino / Teste
+# ## 3.0 Divisão Treino / Teste
 #
 # O split é feito **antes** da EDA para evitar data leakage.
 # Usar dados de teste na análise exploratória introduziria informações que não
@@ -112,7 +137,7 @@ clientes_demo.to_csv("clientes_demo.csv", index=False)
 print(f"Salvo: {clientes_demo.shape[0]} clientes")
 
 # %% [markdown]
-# ## 5.0 Análise Exploratória dos Dados (EDA)
+# ## 4.0 Análise Exploratória dos Dados (EDA)
 #
 # Separando variáveis por tipo — usamos `X_train` para evitar data leakage.
 
@@ -271,7 +296,7 @@ plt.show()
 #   chegando a 1–2% nos contratos de dois anos
 
 # %% [markdown]
-# ## 6.0 Pré-processamento — Pipeline Sklearn
+# ## 5.0 Pré-processamento — Pipeline Sklearn
 #
 # Utilizamos `Pipeline` + `ColumnTransformer` para garantir que as mesmas transformações
 # sejam aplicadas de forma consistente no treino, teste e em dados futuros (produção).
@@ -298,7 +323,7 @@ preprocessor = ColumnTransformer(transformers=[
 
 
 # %% [markdown]
-# ## 7.0 Definição da Métrica de Otimização
+# ## 6.0 Definição da Métrica de Otimização
 #
 # O modelo deve identificar clientes com alta probabilidade de churn para ações proativas.
 # Os erros têm custos assimétricos:
@@ -321,7 +346,7 @@ f2_scorer = make_scorer(fbeta_score, beta=2)
 
 
 # %% [markdown]
-# ## 8.0 Baseline — Comparação de Modelos
+# ## 7.0 Baseline — Comparação de Modelos
 #
 # Comparamos três modelos com parâmetros default para identificar o melhor ponto de partida.
 # Usamos **F2-score** como métrica principal — consistente com o critério de otimização.
@@ -373,7 +398,7 @@ for nome, estimador in modelos:
 
 
 # %% [markdown]
-# ## 9.0 Tuning de Hiperparâmetros — Optuna
+# ## 8.0 Tuning de Hiperparâmetros — Optuna
 #
 # Utilizamos Optuna (otimização bayesiana) — mais eficiente que GridSearch/RandomizedSearch.
 # Otimizamos os dois melhores modelos do baseline: Logistic Regression e XGBoost.
@@ -442,7 +467,7 @@ print(f'Melhores parâmetros: {study_xgboost.best_params}')
 
 
 # %% [markdown]
-# ## 10.0 Modelo Final — Treino e Avaliação no Conjunto de Teste
+# ## 9.0 Modelo Final — Treino e Avaliação no Conjunto de Teste
 #
 # Com os melhores hiperparâmetros encontrados, retreinamos em **todo** o conjunto de treino.
 # O conjunto de teste é tocado **uma única vez** aqui, simulando dados completamente novos.
@@ -484,7 +509,7 @@ plt.show()
 # o F2-score, que prioriza o Recall.
 
 # %% [markdown]
-# ## 11.0 Feature Importance
+# ## 10.0 Feature Importance
 #
 # ### 11.1 Importância Nativa do XGBoost
 #
@@ -503,6 +528,15 @@ plt.title('Feature Importance — XGBoost (Top 15)')
 plt.xlabel('Importância')
 plt.tight_layout()
 plt.show()
+
+# %% [markdown]
+# **Leitura do Feature Importance:**
+# - `Contract_Month-to-month` domina com folga (~0.35) — ser cliente mensal é de longe
+#   o maior preditor de churn no modelo
+# - `OnlineSecurity_No` e `InternetService_Fiber optic` aparecem em seguida (~0.06)
+# - Os dois outros tipos de contrato (`Two year`, `One year`) entram no top 5 —
+#   confirmando que o tipo de contrato é a variável mais relevante
+# - `tenure` aparece apenas na 11ª posição — relevante, mas menos do que as categóricas
 
 # %% [markdown]
 # ### 11.2 SHAP — Explicabilidade do Modelo
@@ -534,10 +568,17 @@ plt.show()
 # - Pontos à esquerda (negativo) reduzem a probabilidade de churn
 #
 # Isso permite identificar não só quais features importam, mas **como** elas influenciam o modelo.
+#
+# **Destaques:**
+# - `Contract_Month-to-month`: clientes com contrato mensal têm forte impacto positivo no churn
+# - `num__tenure`: tenure baixo aumenta o churn, tenure alto reduz — clientes antigos são mais fiéis
+# - `OnlineSecurity_No` e `PaymentMethod_Electronic check`: ausência de segurança online
+#   e pagamento por cheque eletrônico estão associados a maior probabilidade de churn
+# - `Contract_Two year`: contrato longo reduz fortemente o churn
 
 
 # %% [markdown]
-# ## 12.0 Análise Financeira
+# ## 11.0 Análise Financeira
 #
 # Avaliamos o impacto financeiro do modelo comparando dois cenários:
 # - **Sem modelo**: empresa não age, perde todos os clientes que churnam
@@ -545,7 +586,9 @@ plt.show()
 #
 # **Premissas:**
 # - Custo de campanha de retenção: R$50 por cliente abordado
-# - LTV perdido: MonthlyCharges × tenure médio dos clientes com churn
+# - LTV estimado: MonthlyCharges × tenure médio dos clientes com churn (18.2 meses)
+#   O tenure médio dos churners representa quanto tempo um cliente retido provavelmente
+#   ficaria — mais conservador do que usar o tenure geral da base
 # - Taxa de retenção da campanha: 40% dos clientes abordados corretamente (VP)
 #   (referência: campanhas de retenção em telecom têm sucesso em 20–40% dos casos)
 
@@ -588,22 +631,30 @@ print(f'  Valor incremental vs não agir:             R$ {valor_incremental:,.2f
 # %% [markdown]
 # **Interpretação:**
 #
-# O valor incremental responde à pergunta direta: quanto a empresa ganha a mais
-# usando o modelo versus não fazer nada?
+# **Cenário sem modelo (R$ 500.683):**
+# Se a empresa não agir, perde a receita futura estimada de todos os 374 clientes
+# que churnam — calculada como MonthlyCharges × tenure médio dos churners (18.2 meses).
+# O tenure médio dos churners é usado porque representa o tempo que um cliente retido
+# provavelmente ficaria antes de sair — mais conservador do que usar o tenure geral.
 #
-# - Receita salva: churns detectados × taxa de retenção da campanha (40%) × LTV estimado
-# - Custo: todos os clientes abordados (VP + FP) × R$50 por campanha
+# **Cenário com modelo (valor incremental: R$ 142.809):**
+# O modelo detectou 331 dos 374 churns reais. Desses 331:
+# - 40% são efetivamente retidos pela campanha → receita salva: R$ 180.359
+#   (MonthlyCharges de cada VP × 18.2 meses × 40%)
+# - 60% cancelam mesmo após serem abordados → perda inevitável
 #
-# FN e VP não retidos são perdas que ocorreriam de qualquer forma — não entram no cálculo
-# incremental, pois não representam diferença entre agir ou não agir.
+# O custo da operação é R$ 37.550 — os 751 clientes abordados (331 VP + 420 FP) × R$50.
+# Os 420 FP são o custo da imprecisão do modelo: campanhas disparadas sem retorno.
 #
-# Taxa de retenção de 40%: referência conservadora-realista para o setor de telecom.
-# Os Falsos Positivos encarecem a operação sem retorno — coerente com o F2-score,
-# que penaliza FN mais do que FP, mas não ignora o custo de precisão baixa.
+# Valor incremental = R$ 180.359 − R$ 37.550 = **R$ 142.809**
+# É o ganho real do modelo versus não fazer nada.
+#
+# FN (43 churners não detectados) e VP não retidos (60% dos 331) são perdas que
+# ocorreriam de qualquer forma — não entram no cálculo incremental.
 
 
 # %% [markdown]
-# ## 13.0 Salvando o Modelo
+# ## 12.0 Salvando o Modelo
 #
 # Salvamos a pipeline completa (pré-processamento + modelo) em um único arquivo `.pkl`.
 # Isso garante que qualquer dado novo passará pelas mesmas transformações automaticamente,
