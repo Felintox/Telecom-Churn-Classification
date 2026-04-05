@@ -298,55 +298,7 @@ preprocessor = ColumnTransformer(transformers=[
 
 
 # %% [markdown]
-# ## 7.0 Baseline — Comparação de Modelos
-#
-# Comparamos três modelos com parâmetros default para identificar o melhor ponto de partida.
-# Métrica: AUC-ROC via `cross_val_score` (cv=5).
-# Matriz de confusão via `cross_val_predict` — sem data leakage.
-#
-# **Limitação conhecida:** a correlação forte entre `tenure` e `TotalCharges` (≈0.83),
-# observada na EDA, pode subestimar o desempenho da Regressão Logística devido à
-# multicolinearidade — modelos baseados em árvores (Random Forest, XGBoost) são
-# naturalmente imunes a esse efeito. A comparação do baseline não é inteiramente justa
-# para a LR. Ponto a ser tratado em versão futura.
-
-# %%
-modelos = [
-    ('Logistic Regression', LogisticRegression(max_iter=1000, random_state=42)),
-    ('Random Forest',       RandomForestClassifier(random_state=42)),
-    ('XGBoost',             xgb.XGBClassifier(eval_metric='logloss', random_state=42))
-]
-
-for nome, estimador in modelos:
-    pipeline = Pipeline(steps=[
-        ('preprocessor', preprocessor),
-        ('model', estimador)
-    ])
-
-    scores = cross_val_score(pipeline, X_train, y_train, cv=5, scoring='roc_auc')
-    y_pred = cross_val_predict(pipeline, X_train, y_train, cv=5)
-
-    print(f'\n{nome}')
-    print(f'AUC-ROC: {scores.mean():.4f} (+/- {scores.std():.4f})')
-    print(classification_report(y_train, y_pred))
-
-    ConfusionMatrixDisplay(confusion_matrix(y_train, y_pred)).plot()
-    plt.title(f'{nome} — Validação Cruzada')
-    plt.show()
-
-# %% [markdown]
-# **Resultado baseline:**
-# - Logistic Regression: AUC-ROC ≈ 0.8457
-# - XGBoost:             AUC-ROC ≈ 0.8259
-# - Random Forest:       AUC-ROC ≈ 0.8175
-#
-# A Regressão Logística liderou o baseline em AUC-ROC. Parte dessa vantagem pode ser
-# explicada pela multicolinearidade não tratada (tenure × TotalCharges), que penaliza
-# menos a LR nessa métrica do que em coeficientes individuais.
-
-
-# %% [markdown]
-# ## 8.0 Definição da Métrica de Otimização
+# ## 7.0 Definição da Métrica de Otimização
 #
 # O modelo deve identificar clientes com alta probabilidade de churn para ações proativas.
 # Os erros têm custos assimétricos:
@@ -366,6 +318,58 @@ for nome, estimador in modelos:
 
 # %%
 f2_scorer = make_scorer(fbeta_score, beta=2)
+
+
+# %% [markdown]
+# ## 8.0 Baseline — Comparação de Modelos
+#
+# Comparamos três modelos com parâmetros default para identificar o melhor ponto de partida.
+# Usamos **F2-score** como métrica principal — consistente com o critério de otimização.
+# AUC-ROC é exibido como referência adicional.
+# Matriz de confusão via `cross_val_predict` — sem data leakage.
+#
+# **Limitação conhecida:** a correlação forte entre `tenure` e `TotalCharges` (≈0.83),
+# observada na EDA, pode subestimar o desempenho da Regressão Logística devido à
+# multicolinearidade — modelos baseados em árvores (Random Forest, XGBoost) são
+# naturalmente imunes a esse efeito. Ponto a ser tratado em versão futura.
+
+# %%
+modelos = [
+    ('Logistic Regression', LogisticRegression(max_iter=1000, random_state=42)),
+    ('Random Forest',       RandomForestClassifier(random_state=42)),
+    ('XGBoost',             xgb.XGBClassifier(eval_metric='logloss', random_state=42))
+]
+
+for nome, estimador in modelos:
+    pipeline = Pipeline(steps=[
+        ('preprocessor', preprocessor),
+        ('model', estimador)
+    ])
+
+    scores_auc = cross_val_score(pipeline, X_train, y_train, cv=5, scoring='roc_auc')
+    scores_f2  = cross_val_score(pipeline, X_train, y_train, cv=5, scoring=f2_scorer)
+    y_pred     = cross_val_predict(pipeline, X_train, y_train, cv=5)
+
+    print(f'\n{nome}')
+    print(f'AUC-ROC: {scores_auc.mean():.4f} (+/- {scores_auc.std():.4f})')
+    print(f'F2:      {scores_f2.mean():.4f} (+/- {scores_f2.std():.4f})')
+    print(classification_report(y_train, y_pred))
+
+    ConfusionMatrixDisplay(confusion_matrix(y_train, y_pred)).plot()
+    plt.title(f'{nome} — Validação Cruzada')
+    plt.show()
+
+# %% [markdown]
+# **Resultado baseline:**
+#
+# | Modelo               | AUC-ROC | F2     |
+# |----------------------|---------|--------|
+# | Logistic Regression  | 0.8457  | 0.5651 |
+# | XGBoost              | 0.8259  | 0.5244 |
+# | Random Forest        | 0.8175  | 0.5107 |
+#
+# Em F2 — a métrica que guia o projeto — Logistic Regression e XGBoost lideram.
+# Random Forest é descartado. Os dois melhores seguem para o tuning com Optuna.
 
 
 # %% [markdown]
@@ -616,4 +620,3 @@ print('Modelo salvo em model/pipeline_churn.pkl')
 # pipeline = joblib.load('model/pipeline_churn.pkl')
 # predicoes = pipeline.predict(novos_dados)
 # ```
-
