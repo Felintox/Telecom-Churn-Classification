@@ -429,8 +429,8 @@ print(f'Melhores parâmetros: {study_xgboost.best_params}')
 
 # %% [markdown]
 # **Resultado após tuning** (com class_weight / scale_pos_weight incluídos):
-# - Logistic Regression: F2 ≈ 0.7269  (class_weight='balanced')
-# - XGBoost:             F2 ≈ 0.7519  ← modelo escolhido
+# - Logistic Regression: F2 ≈ 0.7270  (class_weight='balanced')
+# - XGBoost:             F2 ≈ 0.7512  ← modelo escolhido
 #
 # O XGBoost superou a Logística após incluir o `scale_pos_weight` no espaço de busca,
 # o que permitiu ao modelo aprender a penalizar mais os erros na classe minoritária (churn).
@@ -602,3 +602,4 @@ print('Modelo salvo em model/pipeline_churn.pkl')
 # pipeline = joblib.load('model/pipeline_churn.pkl')
 # predicoes = pipeline.predict(novos_dados)
 # ```
+
