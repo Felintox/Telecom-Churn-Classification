@@ -36,12 +36,24 @@ Dados brutos
 
 ## Principais Insights da EDA
 
-- Clientes com contrato `Month-to-month` têm taxa de churn significativamente maior
-- `Fiber optic` concentra maior proporção de churn entre os tipos de internet
-- Segmento **Month-to-month + Fiber optic** concentra 55% de taxa de churn — o de maior risco na base
-- Clientes sem serviços adicionais (`OnlineSecurity`, `TechSupport`, etc.) churnam mais
-- `Electronic check` como método de pagamento está fortemente associado ao churn
-- `tenure` baixo é o principal indicador numérico de churn
+<img width="1590" height="592" alt="download" src="https://github.com/user-attachments/assets/4d4feb64-a2bb-40eb-a335-4c4e1f5aba78" />
+
+**Variáveis numéricas:**
+
+- **Tenure:** clientes com churn se concentram nos primeiros meses — clientes recentes cancelam muito mais. Clientes sem churn têm distribuição uniforme ao longo do tempo.
+- **MonthlyCharges:** churn associado a cobranças mensais mais altas — possível insatisfação com custo-benefício.
+- **TotalCharges:** clientes sem churn acumulam valores totais maiores, reflexo direto do maior tempo de permanência.
+
+<img width="1586" height="1520" alt="download" src="https://github.com/user-attachments/assets/d628e368-51de-440d-b8f0-cbd9592ad2ea" />
+
+**Variáveis categóricas:**
+
+- **Contract:** variável mais impactante. Clientes mês a mês têm taxa de churn muito superior a contratos anuais ou bianuais. O segmento **Month-to-month + Fiber optic** concentra 55% de taxa de churn — o perfil de maior risco na base.
+- **InternetService:** fibra óptica concentra maior proporção de churn que DSL — pode indicar expectativa mais alta ou preço elevado.
+- **Serviços adicionais** (`OnlineSecurity`, `TechSupport`, `OnlineBackup`, `DeviceProtection`): clientes sem esses serviços churnam consistentemente mais — maior engajamento com o produto reduz o churn.
+- **PaymentMethod:** `Electronic check` está fortemente associado ao churn em relação aos demais métodos.
+- **SeniorCitizen:** idosos apresentam proporção de churn maior.
+- **Partner e Dependents:** clientes sem parceiro e sem dependentes cancelam mais.
 
 ---
 
